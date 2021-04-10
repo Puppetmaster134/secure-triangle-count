@@ -10,16 +10,15 @@ import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Path;
 import org.neo4j.graphdb.Relationship;
-import org.neo4j.graphdb.traversal.Evaluation;
-import org.neo4j.graphdb.traversal.Evaluator;
-import org.neo4j.graphdb.traversal.Evaluators;
-import org.neo4j.graphdb.traversal.Traverser;
+
+import org.neo4j.graphdb.traversal.*;
 import org.neo4j.logging.Log;
 import org.neo4j.procedure.*;
 
 import java.util.stream.*;
 import java.util.function.Consumer;
 
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,33 +48,59 @@ public class TriangleCountSecure {
     @Procedure(value = "example.triangleCountSecure")
     @Description("Securely count triangles.")
     public Stream<TriangleCount> triangleCountSecure(@Name("lambda") Number lambda) {
-        
-        Consumer<Node> countNodeTriangles = node -> {
+
+
+        Stream<Node> vertices = db.beginTx().findNodes(PERSON).stream();
+
+        List<Node> nodes = vertices.collect(Collectors.toList());
+        System.out.println(nodes.size() + " nodes.");
+        int nodeTriCount[] = new int[nodes.size()];
+        int edgeTriCount[][] = new int[nodes.size()][nodes.size()];
+
+        for(Node node : nodes)
+        {
             long nodeId = node.getId();
-            ArrayList<Long> neighborIds = new ArrayList<Long>();
+            ArrayList<Long> linkNodes = new ArrayList<Long>();
+            ArrayList<Node> neighbors = new ArrayList<Node>();
 
             for(Relationship r : node.getRelationships())
             {
-                neighborIds.add(r.getOtherNodeId(nodeId));
+                linkNodes.add(r.getOtherNodeId(nodeId));
+                neighbors.add(r.getOtherNode(node));
             }
 
-            String neighbors = neighborIds.stream().map(Object::toString).collect(Collectors.joining(","));
-            System.out.println(String.format("%d -- %s",nodeId, neighbors));
+            int triangleCount = 0;
+            for(Node neighbor : neighbors){
+                List<Long> triangleCandidateIds = linkNodes.stream()
+                .filter(id -> id > neighbor.getId())
+                .collect(Collectors.toList());
+
+                List<Relationship> thirdEdges = StreamSupport.stream(neighbor.getRelationships().spliterator(),false)
+                    .filter(rel -> triangleCandidateIds.contains(rel.getOtherNodeId(neighbor.getId())))
+                    .collect(Collectors.toList());
+                
+
+                //How many triangles the edge between node(i)->neighbor(j) participates in 
+                int triCount_i_j = thirdEdges.size();
+
+                //Add to total triangle count for node(i)
+                triangleCount += triCount_i_j;
+            }
+
+            nodeTriCount[(int)nodeId] = triangleCount;
+        }
+
+        System.out.println(Arrays.toString(nodeTriCount));
+        System.out.println(Arrays.deepToString(edgeTriCount));
+        
+        //vertices.forEach(countNodeTriangles);
 
 
 
-            //Query: How many triangles v_i links to?
-            //sequence of nodes linked to v_i
-        };
 
-        Stream<Node> vertices = db.beginTx().findNodes(PERSON).stream();
-        vertices.forEach(countNodeTriangles);
-
-
-        List<Number> testcity = new ArrayList<Number>();
-        testcity.add(69);
         return Stream.of(new TriangleCount(69));
     }
+
 
 
     /**
