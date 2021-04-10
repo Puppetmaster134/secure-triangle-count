@@ -17,9 +17,8 @@ import org.neo4j.graphdb.traversal.Traverser;
 import org.neo4j.logging.Log;
 import org.neo4j.procedure.*;
 
-import java.util.stream.Stream;
+import java.util.stream.*;
 import java.util.function.Consumer;
-import java.util.stream.StreamSupport;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,15 +51,16 @@ public class TriangleCountSecure {
     public Stream<TriangleCount> triangleCountSecure(@Name("lambda") Number lambda) {
         
         Consumer<Node> countNodeTriangles = node -> {
+            long nodeId = node.getId();
+            ArrayList<Long> neighborIds = new ArrayList<Long>();
 
-            ArrayList<Relationship> rels = new ArrayList<Relationship>();
             for(Relationship r : node.getRelationships())
             {
-                rels.add(r);
+                neighborIds.add(r.getOtherNodeId(nodeId));
             }
 
-            //Degree of node
-            System.out.println(rels.size());
+            String neighbors = neighborIds.stream().map(Object::toString).collect(Collectors.joining(","));
+            System.out.println(String.format("%d -- %s",nodeId, neighbors));
 
 
 
