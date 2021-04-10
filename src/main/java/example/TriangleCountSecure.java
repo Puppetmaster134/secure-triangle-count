@@ -40,10 +40,12 @@ public class TriangleCountSecure {
     public Log log;
 
     /**
-     * This procedure takes a Node and gets the relationships going in and out of it
-     *
-     * @param node  The node to get the relationships for
-     * @return  A RelationshipTypes instance with the relations (incoming and outgoing) for a given node.
+     * Best Adaption algorithm for triangle counting queries
+     * Differentially Private Triangle Counting in Large Graphs, Ding et al.,2021
+     * Algorithm 2 in the paper
+     * 
+     * @param lambda  The upper bound to impose on the subgraph
+     * @return  A triangle count instance with the number of triangles for each vertex in the (sub) graph
      */
     @Procedure(value = "example.triangleCountSecure")
     @Description("Securely count triangles.")
