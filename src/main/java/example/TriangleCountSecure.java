@@ -72,19 +72,18 @@ public class TriangleCountSecure {
             int triangleCount = 0;
             for(Node neighbor : neighbors){
                 List<Long> triangleCandidateIds = linkNodes.stream()
-                .filter(id -> id > neighbor.getId())
                 .collect(Collectors.toList());
 
                 List<Relationship> thirdEdges = StreamSupport.stream(neighbor.getRelationships().spliterator(),false)
                     .filter(rel -> triangleCandidateIds.contains(rel.getOtherNodeId(neighbor.getId())))
                     .collect(Collectors.toList());
                 
-
-                //How many triangles the edge between node(i)->neighbor(j) participates in 
-                int triCount_i_j = thirdEdges.size();
+                
+                //How many triangles the edge between node(i)->neighbor(j) participates in
+                edgeTriCount[(int) nodeId][(int) neighbor.getId()] = thirdEdges.size();
 
                 //Add to total triangle count for node(i)
-                triangleCount += triCount_i_j;
+                triangleCount += thirdEdges.stream().filter(rel -> rel.getOtherNodeId(neighbor.getId()) > neighbor.getId()).collect(Collectors.toList()).size();
             }
 
             nodeTriCount[(int)nodeId] = triangleCount;
@@ -93,10 +92,6 @@ public class TriangleCountSecure {
         System.out.println(Arrays.toString(nodeTriCount));
         System.out.println(Arrays.deepToString(edgeTriCount));
         
-        //vertices.forEach(countNodeTriangles);
-
-
-
 
         return Stream.of(new TriangleCount(69));
     }
