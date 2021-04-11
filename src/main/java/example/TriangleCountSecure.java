@@ -89,11 +89,80 @@ public class TriangleCountSecure {
             nodeTriCount[(int)nodeId] = triangleCount;
         }
 
-        System.out.println(Arrays.toString(nodeTriCount));
-        System.out.println(Arrays.deepToString(edgeTriCount));
-        
+        //System.out.println(Arrays.toString(nodeTriCount));
+        //System.out.println(Arrays.deepToString(edgeTriCount));
+
+        for(Node node : nodes)
+        {
+            int nodeId = (int) node.getId();
+
+            while (nodeTriCount[nodeId] > lambda.intValue())
+            {
+                int temp = 0;
+                long k = 0;
+
+                for(Relationship rel : node.getRelationships())
+                {
+                    Node neighbor = rel.getOtherNode(node);
+                    int neighborTriCount = TriangleCountByNodeId(neighbor.getId());
+
+                    if (neighborTriCount > temp)
+                    {
+                        temp = neighborTriCount;
+                        k = neighbor.getId();
+                    }
+                }
+
+                if(temp < lambda.intValue())
+                {
+                    temp = nodeTriCount[nodeId] - lambda.intValue();
+                    k = 0;
+                    int minTemp = Integer.MAX_VALUE - 1;
+
+
+                    for(Relationship rel : node.getRelationships())
+                    {
+                        Node neighbor = rel.getOtherNode(node);
+                        // Line 15
+
+                    }
+                }
+
+
+
+
+                //Update Triangle Count
+                nodeTriCount[nodeId] = TriangleCountByNodeId(node.getId());
+                break;
+            }
+        }
 
         return Stream.of(new TriangleCount(69));
+    }
+
+    private int TriangleCountByNodeId(long nodeId)
+    {       
+        Node node = db.beginTx().getNodeById(nodeId);
+        int triangleCount = 0;
+        
+        List<Long> triangleCandidateIds = StreamSupport
+            .stream(node.getRelationships().spliterator(),false)
+            .map(rel -> rel.getOtherNodeId(node.getId()))
+            .collect(Collectors.toList());
+
+        for(Relationship rel : node.getRelationships())
+        {
+            Node neighbor = rel.getOtherNode(node);
+            List<Relationship> thirdEdges = StreamSupport
+                .stream(neighbor.getRelationships().spliterator(),false)
+                .filter(thirdEdge -> triangleCandidateIds.contains(thirdEdge.getOtherNode(neighbor).getId()))
+                .filter(thirdEdge -> thirdEdge.getOtherNode(neighbor).getId() > neighbor.getId())
+                .collect(Collectors.toList());
+            
+            triangleCount += thirdEdges.size();
+        }
+
+        return triangleCount;
     }
 
 
