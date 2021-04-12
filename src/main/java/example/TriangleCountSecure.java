@@ -51,7 +51,7 @@ public class TriangleCountSecure {
      */
     @Procedure(value = "example.triangleCountSecure", mode=Mode.WRITE)
     @Description("Securely count triangles.")
-    public Stream<TriangleCounts> triangleCountSecure(@Name("lambda") Number lambda) {
+    public Stream<NodeTriangleCount> triangleCountSecure(@Name("lambda") Number lambda) {
         List<Node> nodes = db.beginTx().findNodes(PERSON).stream().collect(Collectors.toList());
         int nodeTriCount[] = countAllVertexTriangles();
         int edgeTriCount[][] = countAllEdgeTriangles();
@@ -120,23 +120,30 @@ public class TriangleCountSecure {
         //System.out.println(Arrays.toString(nodeTriCount));
         //System.out.println(Arrays.deepToString(edgeTriCount));
 
-        return Stream.of(new TriangleCounts(Arrays.stream(nodeTriCount).asLongStream().boxed().collect(Collectors.toList())));
+        ArrayList<NodeTriangleCount> finalPerturbedCounts = new ArrayList<NodeTriangleCount>();
+        for (int i = 0; i < nodeTriCount.length; i++)
+        {
+            finalPerturbedCounts.add(new NodeTriangleCount((long) i, (long) nodeTriCount[i]));
+        }
+
+        return finalPerturbedCounts.stream();
     }
 
     @Procedure(value = "example.triangleHistogramSecure", mode=Mode.WRITE)
     @Description("Securely count triangles.")
-    public Stream<PerturbedValue> TriangleHistogramSecure(@Name("lambda") Number lambda) {
-        TriangleCounts counts = triangleCountSecure(lambda).collect(Collectors.toList()).get(0);
-
+    public Stream<PerturbedValue> TriangleHistogramSecure(@Name("lambda") Number lambda, @Name("epsilon") Double epsilon) {
+        List<Long> counts = triangleCountSecure(lambda)
+            .map(count -> count.triangleCount)
+            .collect(Collectors.toList());
+        
         ArrayList<PerturbedValue> perturbedValues = new ArrayList<PerturbedValue>();
 
+        Double distributionWidth = (( 4 * lambda.doubleValue() + 1) ) / epsilon;
+        LaplaceDistribution lap = new LaplaceDistribution(0, distributionWidth);
+
         IntStream.rangeClosed(0, lambda.intValue()).forEachOrdered(step -> {
-            int numVertices = Collections.frequency(counts.counts, (long) step);
-
-            //Add Laplacian noise to numVertices
-
-            PerturbedValue val = new PerturbedValue((long) step, (double) numVertices);
-            perturbedValues.add(val);
+            int numVertices = Collections.frequency(counts, (long) step);
+            perturbedValues.add(new PerturbedValue((long) step, (double) numVertices + lap.sample()));
         });
 
         
@@ -264,15 +271,40 @@ public class TriangleCountSecure {
      *     <li>{@link Object}, meaning any of the valid field types</li>
      * </ul>
      */
-    public static class TriangleCounts {
-        // These records contain two lists of distinct relationship types going in and out of a Node.
-        public List<Long> counts;
+    public static class NodeTriangleCount {
+        public Long nodeId;
+        public Long triangleCount;
 
-        public TriangleCounts(List<Long> counts) {
-            this.counts = counts;
+        public NodeTriangleCount(Long nodeId, Long triangleCount)
+        {
+            this.nodeId = nodeId;
+            this.triangleCount = triangleCount;
         }
     }
-
+    
+    /**
+     * This is the output record for our search procedure. All procedures
+     * that return results return them as a Stream of Records, where the
+     * records are defined like this one - customized to fit what the procedure
+     * is returning.
+     * <p>
+     * These classes can only have public non-final fields, and the fields must
+     * be one of the following types:
+     *
+     * <ul>
+     *     <li>{@link String}</li>
+     *     <li>{@link Long} or {@code long}</li>
+     *     <li>{@link Double} or {@code double}</li>
+     *     <li>{@link Number}</li>
+     *     <li>{@link Boolean} or {@code boolean}</li>
+     *     <li>{@link Node}</li>
+     *     <li>{@link org.neo4j.graphdb.Relationship}</li>
+     *     <li>{@link org.neo4j.graphdb.Path}</li>
+     *     <li>{@link Map} with key {@link String} and value {@link Object}</li>
+     *     <li>{@link List} of elements of any valid field type, including {@link List}</li>
+     *     <li>{@link Object}, meaning any of the valid field types</li>
+     * </ul>
+     */
     public static class PerturbedValue {
         public Long step;
         public Double perturbedValue;

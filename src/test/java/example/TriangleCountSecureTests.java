@@ -44,14 +44,16 @@ public class TriangleCountSecureTests {
             ) {
 
                 int lambda = 2;
-                //String formattedTestQuery = "CALL example.triangleCountSecure(3) YIELD numTriangles RETURN numTriangles";
-                String formattedTestQuery = String.format("CALL example.triangleCountSecure(%d)",lambda);
-                Record record = session.run(formattedTestQuery).single();
-                
-                List<Integer> values = new ArrayList<Integer>(record.values().get(0).asList(Values.ofInteger(),new ArrayList<Integer>()));
 
-                System.out.println("Max Value: " + Collections.max(values));
-                assertThat(Collections.max(values) <= lambda);
+                String formattedTestQuery = String.format("CALL example.triangleCountSecure(%d)",lambda);
+                List<Record> records = session.run(formattedTestQuery).list();                
+                
+                List<Long> triangleCounts = records.stream()
+                    .map(record -> (long) record.asMap().get("triangleCount"))
+                    .collect(Collectors.toList());
+                
+
+                assertThat(Collections.max(triangleCounts) <= lambda);
         }
     }
 
@@ -63,11 +65,19 @@ public class TriangleCountSecureTests {
             ) {
 
                 int lambda = 2;
-                
-                String formattedTestQuery = String.format("CALL example.triangleHistogramSecure(%d)",lambda);
-                Record record = session.run(formattedTestQuery).single();
+                Double epsilon = 100.0d;
 
-                assertThat(true);
+                String formattedTestQuery = String.format("CALL example.triangleHistogramSecure(%d,%f)",lambda,epsilon);
+                List<Record> records = session.run(formattedTestQuery).list();
+
+                System.out.println("\n#Triangles\t#Nodes\n");
+                for(Record r : records)
+                {
+                    String histogramStep = String.format("%d\t\t%f",r.asMap().get("step"),r.asMap().get("perturbedValue"));
+                    System.out.print(histogramStep + "\n");
+                }
+
+                assertThat(records.size() == (lambda + 1));
         }
     }
 

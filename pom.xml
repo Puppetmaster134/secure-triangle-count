@@ -71,7 +71,11 @@
       <version>${assertj.version}</version>
       <scope>test</scope>
     </dependency>
-
+    <dependency>
+      <groupId>group.id</groupId>
+      <artifactId>artifact.id</artifactId>
+      <version>1.0</version>
+    </dependency>
   </dependencies>
 
   <build>
