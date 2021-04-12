@@ -15,7 +15,7 @@ import java.util.stream.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class TriangleCountSecureTests {
+public class TriangleCountTests {
 
     private static final Config driverConfig = Config.builder().withoutEncryption().build();
     private static Driver driver;
@@ -30,22 +30,20 @@ public class TriangleCountSecureTests {
         }
 
         this.embeddedDatabaseServer = Neo4jBuilders.newInProcessBuilder()
-            .withProcedure(TriangleCountSecure.class)
+            .withProcedure(TriangleCount.class)
             .withFixture(sw.toString())
             .build();
     }
 
 
     @Test
-    public void numTrianglesLessThanLambda() {
+    public void triangleCountTest() {
         try(
                 Driver driver = GraphDatabase.driver(embeddedDatabaseServer.boltURI(), driverConfig);
                 Session session = driver.session()
             ) {
 
-                int lambda = 5;
-
-                String formattedTestQuery = String.format("CALL example.triangleCountSecure(%d)",lambda);
+                String formattedTestQuery = String.format("CALL example.triangleCount()");
                 List<Record> records = session.run(formattedTestQuery).list();                
                 
                 List<Long> triangleCounts = records.stream()
@@ -53,21 +51,21 @@ public class TriangleCountSecureTests {
                     .collect(Collectors.toList());
                 
 
-                assertThat(Collections.max(triangleCounts) <= lambda);
+                System.out.println(triangleCounts);
+                
+                //Make real assertions later
+                assertThat(true);
         }
     }
 
     @Test
-    public void TriangleHistogramSecureTest() {
+    public void triangleHistogramTest() {
         try(
                 Driver driver = GraphDatabase.driver(embeddedDatabaseServer.boltURI(), driverConfig);
                 Session session = driver.session()
             ) {
 
-                int lambda = 4;
-                Double epsilon = 100.0d;
-
-                String formattedTestQuery = String.format("CALL example.triangleHistogramSecure(%d,%f)",lambda,epsilon);
+                String formattedTestQuery = String.format("CALL example.triangleHistogram()");
                 List<Record> records = session.run(formattedTestQuery).list();
 
                 System.out.println("\n#Triangles\t#Nodes\n");
@@ -77,7 +75,8 @@ public class TriangleCountSecureTests {
                     System.out.print(histogramStep + "\n");
                 }
 
-                assertThat(records.size() == (lambda + 1));
+                //Make real assertions later
+                assertThat(true);
         }
     }
 

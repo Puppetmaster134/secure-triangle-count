@@ -23,13 +23,11 @@ import java.util.function.Consumer;
 import java.lang.Math;
 import java.lang.IllegalArgumentException;
 
-import org.apache.commons.math3.distribution.LaplaceDistribution;
-
 /**
  *
  * @author brian
  */
-public class TriangleCountSecure {
+public class TriangleCount {
 
     static final Label PERSON = Label.label("Person");
 
@@ -42,108 +40,37 @@ public class TriangleCountSecure {
     public Log log;
 
     /**
-     * Best Adaption algorithm for triangle counting queries
-     * Differentially Private Triangle Counting in Large Graphs, Ding et al.,2021
-     * Algorithm 2 in the paper
+     * Regular triangle counting algorithm
      * 
-     * @param lambda  The upper bound to impose on the subgraph
      * @return  A triangle count instance with the number of triangles for each vertex in the (sub) graph
      */
-    @Procedure(value = "example.triangleCountSecure", mode=Mode.WRITE)
-    @Description("Securely count triangles.")
-    public Stream<NodeTriangleCount> triangleCountSecure(@Name("lambda") Number lambda) {
+    @Procedure(value = "example.triangleCount", mode=Mode.WRITE)
+    @Description("Count triangles.")
+    public Stream<NodeTriangleCount> triangleCount() {
         List<Node> nodes = db.beginTx().findNodes(PERSON).stream().collect(Collectors.toList());
         int nodeTriCount[] = countAllVertexTriangles();
-        int edgeTriCount[][] = countAllEdgeTriangles();
 
-        //System.out.println(Arrays.toString(nodeTriCount));
-        //System.out.println(Arrays.deepToString(edgeTriCount));
-
-        for(Node node : nodes)
-        {
-            final int nodeId = (int) node.getId();
-
-            while (nodeTriCount[nodeId] > lambda.intValue())
-            {
-                int temp = 0;
-                long k = 0;
-
-                for(Relationship rel : node.getRelationships())
-                {
-                    Node neighbor = rel.getOtherNode(node);
-                    int neighborTriCount = TriangleCountByNodeId(neighbor.getId());
-
-                    if (neighborTriCount > temp)
-                    {
-                        temp = neighborTriCount;
-                        k = neighbor.getId();
-                    }
-                }
-
-                if(temp < lambda.intValue())
-                {
-                    temp = nodeTriCount[nodeId] - lambda.intValue();
-                    k = 0;
-                    int minTemp = Integer.MAX_VALUE - 1;
-
-
-                    for(Relationship rel : node.getRelationships())
-                    {
-                        Node neighbor = rel.getOtherNode(node);
-                        int diff = Math.abs(temp - edgeTriCount[(int) nodeId][(int) neighbor.getId()]);
-
-                        //Line 16
-                        // Note: I used '<' instead of '>'. I think '>' is a mistake in the paper since minTemp is set to INT MAX
-                        if (diff < minTemp)
-                        {
-                            minTemp = diff;
-                            k = neighbor.getId();
-                        }
-                    }
-                }
-
-                //Delete edge v_i -> v_k
-                try
-                {
-                    boolean success = DeleteEdge(nodeId, k);
-                }
-                catch(IllegalArgumentException e) { System.err.println(e); }
-
-                //Update Triangle Count
-                nodeTriCount[nodeId] = TriangleCountByNodeId(node.getId());
-                edgeTriCount = countAllEdgeTriangles();
-            }
-
-            nodeTriCount = countAllVertexTriangles();
-        }
-
-        //System.out.println(Arrays.toString(nodeTriCount));
-        //System.out.println(Arrays.deepToString(edgeTriCount));
-
-        ArrayList<NodeTriangleCount> finalPerturbedCounts = new ArrayList<NodeTriangleCount>();
+        ArrayList<NodeTriangleCount> finalCounts = new ArrayList<NodeTriangleCount>();
         for (int i = 0; i < nodeTriCount.length; i++)
         {
-            finalPerturbedCounts.add(new NodeTriangleCount((long) i, (long) nodeTriCount[i]));
+            finalCounts.add(new NodeTriangleCount((long) i, (long) nodeTriCount[i]));
         }
 
-        return finalPerturbedCounts.stream();
+        return finalCounts.stream();
     }
 
-    @Procedure(value = "example.triangleHistogramSecure", mode=Mode.WRITE)
-    @Description("Securely count triangles.")
-    public Stream<PerturbedValue> TriangleHistogramSecure(@Name("lambda") Number lambda, @Name("epsilon") Double epsilon) {
-        List<Long> counts = triangleCountSecure(lambda)
+    @Procedure(value = "example.triangleHistogram", mode=Mode.WRITE)
+    @Description("Create a triangle count histogram aggregation.")
+    public Stream<PerturbedValue> triangleHistogram() {
+        List<Long> counts = triangleCount()
             .map(count -> count.triangleCount)
             .collect(Collectors.toList());
         
         ArrayList<PerturbedValue> perturbedValues = new ArrayList<PerturbedValue>();
 
-        Double distributionWidth = (( 4 * lambda.doubleValue() + 1) ) / epsilon;
-        LaplaceDistribution lap = new LaplaceDistribution(0, distributionWidth);
-
-        IntStream.rangeClosed(0, lambda.intValue()).forEachOrdered(step -> {
+        IntStream.rangeClosed(0, Collections.max(counts).intValue()).forEachOrdered(step -> {
             int numVertices = Collections.frequency(counts, (long) step);
-            perturbedValues.add(new PerturbedValue((long) step, Math.max((double) numVertices + lap.sample(),0.0d)));
+            perturbedValues.add(new PerturbedValue((long) step, (double) numVertices));
         });
 
         
@@ -228,22 +155,6 @@ public class TriangleCountSecure {
         }
 
         return nodeTriCount;
-    }
-
-    private int[][] countAllEdgeTriangles()
-    {        
-        List<Node> nodes = db.beginTx().findNodes(PERSON).stream().collect(Collectors.toList());
-        int edgeTriCount[][] = new int[nodes.size()][nodes.size()];
-        for(Node node : nodes)
-        {        
-            for(Relationship r : node.getRelationships())
-            {
-                long neighborId = r.getOtherNodeId(node.getId());
-                edgeTriCount[(int) node.getId()][(int) neighborId] = EdgeTriangleCount(node.getId(), neighborId);
-            }
-        }
-
-        return edgeTriCount;
     }
 
 
