@@ -15,3 +15,6 @@ project, simply package the project with maven:
 This will produce a jar-file,`target/procedure-template-1.0.0-SNAPSHOT.jar`,
 that can be deployed in the `plugin` directory of your Neo4j instance.
 
+== References
+Ding, Xiaofeng, et al. "Differentially Private Triangle Counting in Large Graphs." IEEE Transactions on Knowledge and Data Engineering (2021).
+
