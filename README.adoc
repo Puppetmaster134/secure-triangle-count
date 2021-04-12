@@ -1,5 +1,7 @@
 = Secure Triangle Counting for Neo4j
 
+This is a User-defined Procedure implementation of the Best Adaptation algorithm from Ding et al.,2021. The algorithm deletes edges from a source graph to bound the graph by input parameter lambda. With a lambda-bounded graph, epsilon differential privacy can be guaranteed easily in returning a triangle count histogram.
+
 Full Paper:
 https://ieeexplore.ieee.org/abstract/document/9328453
 
