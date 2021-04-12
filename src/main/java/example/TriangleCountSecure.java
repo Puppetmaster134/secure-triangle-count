@@ -23,6 +23,8 @@ import java.util.function.Consumer;
 import java.lang.Math;
 import java.lang.IllegalArgumentException;
 
+import org.apache.commons.math3.distribution.LaplaceDistribution;
+
 /**
  *
  * @author brian
@@ -33,7 +35,8 @@ public class TriangleCountSecure {
 
     @Context
     public GraphDatabaseService db;
-        // This gives us a log instance that outputs messages to the
+    
+    // This gives us a log instance that outputs messages to the
     // standard log, normally found under `data/log/console.log`
     @Context
     public Log log;
@@ -117,9 +120,27 @@ public class TriangleCountSecure {
         //System.out.println(Arrays.toString(nodeTriCount));
         //System.out.println(Arrays.deepToString(edgeTriCount));
 
-        
-        // return Stream.of(new TriangleCounts(Arrays.stream(nodeTriCount).asLongStream()));
         return Stream.of(new TriangleCounts(Arrays.stream(nodeTriCount).asLongStream().boxed().collect(Collectors.toList())));
+    }
+
+    @Procedure(value = "example.triangleHistogramSecure", mode=Mode.WRITE)
+    @Description("Securely count triangles.")
+    public Stream<PerturbedValue> TriangleHistogramSecure(@Name("lambda") Number lambda) {
+        TriangleCounts counts = triangleCountSecure(lambda).collect(Collectors.toList()).get(0);
+
+        ArrayList<PerturbedValue> perturbedValues = new ArrayList<PerturbedValue>();
+
+        IntStream.rangeClosed(0, lambda.intValue()).forEachOrdered(step -> {
+            int numVertices = Collections.frequency(counts.counts, (long) step);
+
+            //Add Laplacian noise to numVertices
+
+            PerturbedValue val = new PerturbedValue((long) step, (double) numVertices);
+            perturbedValues.add(val);
+        });
+
+        
+        return perturbedValues.stream();
     }
 
     private int TriangleCountByNodeId(long nodeId)
@@ -249,6 +270,22 @@ public class TriangleCountSecure {
 
         public TriangleCounts(List<Long> counts) {
             this.counts = counts;
+        }
+    }
+
+    public static class PerturbedValue {
+        public Long step;
+        public Double perturbedValue;
+        
+        public PerturbedValue(long step, Double count)
+        {
+            this.step = step;
+            this.perturbedValue = count;
+        }
+
+        public String toString()
+        {
+            return (this.step + " -- " + this.perturbedValue);
         }
     }
 }

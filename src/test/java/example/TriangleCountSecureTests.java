@@ -55,5 +55,21 @@ public class TriangleCountSecureTests {
         }
     }
 
+    @Test
+    public void TriangleHistogramSecureTest() {
+        try(
+                Driver driver = GraphDatabase.driver(embeddedDatabaseServer.boltURI(), driverConfig);
+                Session session = driver.session()
+            ) {
+
+                int lambda = 2;
+                
+                String formattedTestQuery = String.format("CALL example.triangleHistogramSecure(%d)",lambda);
+                Record record = session.run(formattedTestQuery).single();
+
+                assertThat(true);
+        }
+    }
+
 
 }
