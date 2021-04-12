@@ -9,18 +9,19 @@ import org.neo4j.graphdb.GraphDatabaseService;
 import org.neo4j.graphdb.Label;
 import org.neo4j.graphdb.Node;
 import org.neo4j.graphdb.Path;
+import org.neo4j.graphdb.Transaction;
 import org.neo4j.graphdb.Relationship;
 
 import org.neo4j.graphdb.traversal.*;
 import org.neo4j.logging.Log;
 import org.neo4j.procedure.*;
 
+import java.util.*;
 import java.util.stream.*;
 import java.util.function.Consumer;
 
-import java.util.Arrays;
-import java.util.ArrayList;
-import java.util.List;
+import java.lang.Math;
+import java.lang.IllegalArgumentException;
 
 /**
  *
@@ -45,56 +46,19 @@ public class TriangleCountSecure {
      * @param lambda  The upper bound to impose on the subgraph
      * @return  A triangle count instance with the number of triangles for each vertex in the (sub) graph
      */
-    @Procedure(value = "example.triangleCountSecure")
+    @Procedure(value = "example.triangleCountSecure", mode=Mode.WRITE)
     @Description("Securely count triangles.")
-    public Stream<TriangleCount> triangleCountSecure(@Name("lambda") Number lambda) {
-
-
-        Stream<Node> vertices = db.beginTx().findNodes(PERSON).stream();
-
-        List<Node> nodes = vertices.collect(Collectors.toList());
-        System.out.println(nodes.size() + " nodes.");
-        int nodeTriCount[] = new int[nodes.size()];
-        int edgeTriCount[][] = new int[nodes.size()][nodes.size()];
-
-        for(Node node : nodes)
-        {
-            long nodeId = node.getId();
-            ArrayList<Long> linkNodes = new ArrayList<Long>();
-            ArrayList<Node> neighbors = new ArrayList<Node>();
-
-            for(Relationship r : node.getRelationships())
-            {
-                linkNodes.add(r.getOtherNodeId(nodeId));
-                neighbors.add(r.getOtherNode(node));
-            }
-
-            int triangleCount = 0;
-            for(Node neighbor : neighbors){
-                List<Long> triangleCandidateIds = linkNodes.stream()
-                .collect(Collectors.toList());
-
-                List<Relationship> thirdEdges = StreamSupport.stream(neighbor.getRelationships().spliterator(),false)
-                    .filter(rel -> triangleCandidateIds.contains(rel.getOtherNodeId(neighbor.getId())))
-                    .collect(Collectors.toList());
-                
-                
-                //How many triangles the edge between node(i)->neighbor(j) participates in
-                edgeTriCount[(int) nodeId][(int) neighbor.getId()] = thirdEdges.size();
-
-                //Add to total triangle count for node(i)
-                triangleCount += thirdEdges.stream().filter(rel -> rel.getOtherNodeId(neighbor.getId()) > neighbor.getId()).collect(Collectors.toList()).size();
-            }
-
-            nodeTriCount[(int)nodeId] = triangleCount;
-        }
+    public Stream<TriangleCounts> triangleCountSecure(@Name("lambda") Number lambda) {
+        List<Node> nodes = db.beginTx().findNodes(PERSON).stream().collect(Collectors.toList());
+        int nodeTriCount[] = countAllVertexTriangles();
+        int edgeTriCount[][] = countAllEdgeTriangles();
 
         //System.out.println(Arrays.toString(nodeTriCount));
         //System.out.println(Arrays.deepToString(edgeTriCount));
 
         for(Node node : nodes)
         {
-            int nodeId = (int) node.getId();
+            final int nodeId = (int) node.getId();
 
             while (nodeTriCount[nodeId] > lambda.intValue())
             {
@@ -123,21 +87,39 @@ public class TriangleCountSecure {
                     for(Relationship rel : node.getRelationships())
                     {
                         Node neighbor = rel.getOtherNode(node);
-                        // Line 15
+                        int diff = Math.abs(temp - edgeTriCount[(int) nodeId][(int) neighbor.getId()]);
 
+                        //Line 16
+                        // Note: I used '<' instead of '>'. I think '>' is a mistake in the paper since minTemp is set to INT MAX
+                        if (diff < minTemp)
+                        {
+                            minTemp = diff;
+                            k = neighbor.getId();
+                        }
                     }
                 }
 
-
-
+                //Delete edge v_i -> v_k
+                try
+                {
+                    boolean success = DeleteEdge(nodeId, k);
+                }
+                catch(IllegalArgumentException e) { System.err.println(e); }
 
                 //Update Triangle Count
                 nodeTriCount[nodeId] = TriangleCountByNodeId(node.getId());
-                break;
+                edgeTriCount = countAllEdgeTriangles();
             }
+
+            nodeTriCount = countAllVertexTriangles();
         }
 
-        return Stream.of(new TriangleCount(69));
+        //System.out.println(Arrays.toString(nodeTriCount));
+        //System.out.println(Arrays.deepToString(edgeTriCount));
+
+        
+        // return Stream.of(new TriangleCounts(Arrays.stream(nodeTriCount).asLongStream()));
+        return Stream.of(new TriangleCounts(Arrays.stream(nodeTriCount).asLongStream().boxed().collect(Collectors.toList())));
     }
 
     private int TriangleCountByNodeId(long nodeId)
@@ -165,6 +147,77 @@ public class TriangleCountSecure {
         return triangleCount;
     }
 
+    private int EdgeTriangleCount(long firstNodeId, long secondNodeId)
+    {
+        Node firstNode = db.beginTx().getNodeById(firstNodeId);
+        Node secondNode = db.beginTx().getNodeById(secondNodeId);
+        
+        List<Long> firstNodeNeighbors = StreamSupport
+            .stream(firstNode.getRelationships().spliterator(),false)
+            .map(rel -> rel.getOtherNodeId(firstNodeId))
+            .collect(Collectors.toList());
+
+        List<Long> secondNodeNeighbors = StreamSupport
+            .stream(secondNode.getRelationships().spliterator(),false)
+            .map(rel -> rel.getOtherNodeId(secondNodeId))
+            .collect(Collectors.toList());
+        
+        Set<Long> result = firstNodeNeighbors.stream()
+            .distinct()
+            .filter(secondNodeNeighbors::contains)
+            .collect(Collectors.toSet());
+
+        return result.size();
+    }
+
+    private boolean DeleteEdge(long originId, long targetId)
+    {
+        final long deletionCandidateId = targetId;
+                    
+        try (Transaction tx = db.beginTx()) {
+            Node originVertex = tx.getNodeById(originId);
+
+            for (Relationship r : originVertex.getRelationships()) {
+                if(r.getOtherNodeId(originVertex.getId()) == targetId)
+                {
+                    r.delete();
+                }
+            }
+            tx.commit();
+        }
+
+        return true;
+    }
+
+    private int[] countAllVertexTriangles()
+    {
+        List<Node> nodes = db.beginTx().findNodes(PERSON).stream().collect(Collectors.toList());
+
+        int nodeTriCount[] = new int[nodes.size()];
+        for(Node node : nodes)
+        {
+            nodeTriCount[(int) node.getId()] = TriangleCountByNodeId(node.getId());
+        }
+
+        return nodeTriCount;
+    }
+
+    private int[][] countAllEdgeTriangles()
+    {        
+        List<Node> nodes = db.beginTx().findNodes(PERSON).stream().collect(Collectors.toList());
+        int edgeTriCount[][] = new int[nodes.size()][nodes.size()];
+        for(Node node : nodes)
+        {        
+            for(Relationship r : node.getRelationships())
+            {
+                long neighborId = r.getOtherNodeId(node.getId());
+                edgeTriCount[(int) node.getId()][(int) neighborId] = EdgeTriangleCount(node.getId(), neighborId);
+            }
+        }
+
+        return edgeTriCount;
+    }
+
 
 
     /**
@@ -190,12 +243,12 @@ public class TriangleCountSecure {
      *     <li>{@link Object}, meaning any of the valid field types</li>
      * </ul>
      */
-    public static class TriangleCount {
+    public static class TriangleCounts {
         // These records contain two lists of distinct relationship types going in and out of a Node.
-        public Number numTriangles;
+        public List<Long> counts;
 
-        public TriangleCount(Number triangleCount) {
-            this.numTriangles = triangleCount;
+        public TriangleCounts(List<Long> counts) {
+            this.counts = counts;
         }
     }
 }

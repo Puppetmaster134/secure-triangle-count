@@ -9,8 +9,8 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.StringWriter;
-import java.util.List;
-import java.util.stream.Collectors;
+import java.util.*;
+import java.util.stream.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -37,16 +37,21 @@ public class TriangleCountSecureTests {
 
 
     @Test
-    public void triangleCountTest() {
+    public void numTrianglesLessThanLambda() {
         try(
                 Driver driver = GraphDatabase.driver(embeddedDatabaseServer.boltURI(), driverConfig);
                 Session session = driver.session()
             ) {
 
-                String formattedTestQuery = "CALL example.triangleCountSecure(2) YIELD numTriangles RETURN numTriangles";
+                int lambda = 2;
+                //String formattedTestQuery = "CALL example.triangleCountSecure(3) YIELD numTriangles RETURN numTriangles";
+                String formattedTestQuery = String.format("CALL example.triangleCountSecure(%d)",lambda);
                 Record record = session.run(formattedTestQuery).single();
                 
-                assertThat(true);
+                List<Integer> values = new ArrayList<Integer>(record.values().get(0).asList(Values.ofInteger(),new ArrayList<Integer>()));
+
+                System.out.println("Max Value: " + Collections.max(values));
+                assertThat(Collections.max(values) <= lambda);
         }
     }
 
