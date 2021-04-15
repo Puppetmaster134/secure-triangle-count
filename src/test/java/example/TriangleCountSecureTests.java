@@ -24,7 +24,7 @@ public class TriangleCountSecureTests {
     @BeforeAll
     void initializeNeo4j() throws IOException {
         var sw = new StringWriter();
-        try (var in = new BufferedReader(new InputStreamReader(getClass().getResourceAsStream("/friend.cypher")))) {
+        try (var in = new BufferedReader(new InputStreamReader(getClass().getResourceAsStream("/zachary.cypher")))) {
             in.transferTo(sw);
             sw.flush();
         }
@@ -43,7 +43,7 @@ public class TriangleCountSecureTests {
                 Session session = driver.session()
             ) {
 
-                int lambda = 5;
+                int lambda = 7;
 
                 String formattedTestQuery = String.format("CALL example.triangleCountSecure(%d)",lambda);
                 List<Record> records = session.run(formattedTestQuery).list();                
@@ -64,8 +64,8 @@ public class TriangleCountSecureTests {
                 Session session = driver.session()
             ) {
 
-                int lambda = 4;
-                Double epsilon = 100.0d;
+                int lambda = 7;
+                Double epsilon = 200.0d;
 
                 String formattedTestQuery = String.format("CALL example.triangleHistogramSecure(%d,%f)",lambda,epsilon);
                 List<Record> records = session.run(formattedTestQuery).list();

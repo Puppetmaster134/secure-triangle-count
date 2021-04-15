@@ -24,7 +24,7 @@ public class TriangleCountTests {
     @BeforeAll
     void initializeNeo4j() throws IOException {
         var sw = new StringWriter();
-        try (var in = new BufferedReader(new InputStreamReader(getClass().getResourceAsStream("/friend.cypher")))) {
+        try (var in = new BufferedReader(new InputStreamReader(getClass().getResourceAsStream("/zachary.cypher")))) {
             in.transferTo(sw);
             sw.flush();
         }
